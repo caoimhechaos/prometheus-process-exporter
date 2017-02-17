@@ -82,6 +82,7 @@ func updateProcessCounters() {
 }
 
 func processTicker(t <-chan time.Time) {
+	updateProcessCounters()
 	for range t {
 		updateProcessCounters()
 	}
