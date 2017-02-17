@@ -46,7 +46,8 @@ func calculateMemory(pid int) (uint64, error) {
 			if err != nil {
 				return 0, err
 			}
-			res += size
+			// Size is in kB, so multiply by 1024.
+			res += size * 1024
 		}
 	}
 	if err := r.Err(); err != nil {
