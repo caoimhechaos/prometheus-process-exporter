@@ -27,6 +27,14 @@ var procTotalMem = prometheus.NewGaugeVec(
 		Help:      "Number of bytes allocated by process name (sum of all matching)",
 	},
 	[]string{"procname"})
+var procTotalCount = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: "node",
+		Subsystem: "os",
+		Name:      "num_processes",
+		Help:      "Number of processes of a certain kind existing",
+	},
+	[]string{"procname"})
 
 func calculateMemory(pid int) (uint64, error) {
 	f, err := os.Open(fmt.Sprintf("/proc/%d/smaps", pid))
@@ -59,6 +67,7 @@ func calculateMemory(pid int) (uint64, error) {
 
 func updateProcessCounters() {
 	var procSizes = make(map[string]uint64)
+	var procCounts = make(map[string]uint64)
 
 	procs, err := ps.Processes()
 
@@ -68,6 +77,7 @@ func updateProcessCounters() {
 	}
 
 	for _, proc := range procs {
+		procCounts[proc.Executable()]++
 		size, err := calculateMemory(proc.Pid())
 		if err == nil {
 			procSizes[proc.Executable()] += size
@@ -79,6 +89,9 @@ func updateProcessCounters() {
 
 	for name, size := range procSizes {
 		procTotalMem.WithLabelValues(name).Set(float64(size))
+	}
+	for name, size := range procCounts {
+		procTotalCount.WithLabelValues(name).Set(float64(size))
 	}
 }
 
