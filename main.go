@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"net/http"
@@ -65,6 +66,35 @@ func calculateMemory(pid int) (uint64, error) {
 	return res, nil
 }
 
+func canonicalProcName(in string) string {
+	if in[0] == '/' {
+		var bestName string
+
+		parts := strings.Split(in, "/")
+
+		for _, curName := range parts {
+			if len(bestName) == 0 {
+				bestName = curName
+				continue
+			}
+
+			// Ignore parts which are not descriptive of the
+			// program itself.
+			if curName != "usr" && curName != "bin" &&
+				curName != "sbin" && curName != "local" {
+				bestName = curName
+			}
+		}
+
+		return bestName
+	} else {
+		// We know the first part is not empty, but there is a /
+		// so this is probably something like "kthreadd/23".
+		parts := strings.Split(in, "/")
+		return parts[0]
+	}
+}
+
 func updateProcessCounters() {
 	var procSizes = make(map[string]uint64)
 	var procCounts = make(map[string]uint64)
@@ -77,10 +107,10 @@ func updateProcessCounters() {
 	}
 
 	for _, proc := range procs {
-		procCounts[proc.Executable()]++
+		procCounts[canonicalProcName(proc.Executable())]++
 		size, err := calculateMemory(proc.Pid())
 		if err == nil {
-			procSizes[proc.Executable()] += size
+			procSizes[canonicalProcName(proc.Executable())] += size
 		} else {
 			log.Print("Error calculating memory for ", proc.Executable(), ": ",
 				err)
@@ -113,6 +143,7 @@ func main() {
 	flag.Parse()
 
 	prometheus.MustRegister(procTotalMem)
+	prometheus.MustRegister(procTotalCount)
 
 	go processTicker(time.Tick(1 * time.Minute))
 	http.Handle("/metrics", promhttp.Handler())
