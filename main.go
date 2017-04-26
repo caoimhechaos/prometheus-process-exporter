@@ -95,6 +95,8 @@ func canonicalProcName(in string) string {
 	}
 }
 
+var procExists = make(map[string]bool)
+
 func updateProcessCounters() {
 	var procSizes = make(map[string]uint64)
 	var procCounts = make(map[string]uint64)
@@ -118,10 +120,26 @@ func updateProcessCounters() {
 	}
 
 	for name, size := range procSizes {
+		procExists[name] = true
 		procTotalMem.WithLabelValues(name).Set(float64(size))
 	}
 	for name, size := range procCounts {
+		procExists[name] = true
 		procTotalCount.WithLabelValues(name).Set(float64(size))
+	}
+
+	// Clean up dead data.
+	for name, _ := range procExists {
+		if _, ok := procSizes[name]; !ok {
+			// Process disappeared, we need to clear it.
+			procTotalMem.DeleteLabelValues(name)
+			delete(procExists, name)
+		}
+		if _, ok := procCounts[name]; !ok {
+			// Process disappeared, we need to clear it.
+			procTotalCount.DeleteLabelValues(name)
+			delete(procExists, name)
+		}
 	}
 }
 
